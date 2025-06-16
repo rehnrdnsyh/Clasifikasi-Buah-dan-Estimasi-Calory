@@ -45,10 +45,16 @@ def prepare_image_from_bytes(image_bytes):
         pred_idx = np.argmax(prediction[0])
         
         # Get the confidence score
-        # confidence = float(prediction[0][pred_idx])
+        confidence = float(prediction[0][pred_idx])
+        
+        # Set confidence threshold - if prediction confidence is too low, return None
+        confidence_threshold = 0.6  # Adjust this value as needed
+        
+        if confidence < confidence_threshold:
+            return None
         
         # Get the food name
-        fruit_name = fruits_list[pred_idx] if pred_idx < len(fruits_list) else "unknown"
+        fruit_name = fruits_list[pred_idx] if pred_idx < len(fruits_list) else None
         
         return fruit_name
     except Exception as e:
@@ -281,9 +287,13 @@ def run():
                                                 delta=f"Protein: {nutrition['protein']}g"
                                             )
                 else:
-                    st.warning("Tidak dapat mengidentifikasi buah dari gambar.")
-                    st.info("Silakan coba gambar lain atau pastikan gambar jelas dan fokus pada buah.")
-                    st.image(img_file, caption="Gambar yang diunggah", use_column_width=True)
+                    st.error("❌ **Tidak dapat mengidentifikasi buah dari gambar**")
+                    st.warning("🔄 **Coba gunakan foto buah yang lain**")
+                    st.info("💡 **Tips:**")
+                    st.write("- Pastikan gambar fokus dan jelas")
+                    st.write("- Gunakan foto buah segar yang utuh")
+                    st.write("- Hindari gambar dengan background yang ramai")
+                    st.write("- Pastikan pencahayaan cukup baik")
 
 
 # Run the application
