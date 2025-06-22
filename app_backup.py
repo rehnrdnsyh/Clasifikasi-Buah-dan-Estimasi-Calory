@@ -345,14 +345,15 @@ def run():
             <h4>🎯 Buah yang Didukung:</h4>
             <p>🍎 🍌 🥑 🍒 🥝</p>
             <p>🥭 🍊 🍍 🍓 🍉</p>
-        </div>        """, unsafe_allow_html=True)
+        </div>
+        """, unsafe_allow_html=True)
     
     if img_file is not None:
         # Display the uploaded image with better styling
         col1, col2, col3 = st.columns([1, 2, 1])
         with col2:
-            img = Image.open(img_file).resize((200, 200))
-            st.image(img, caption="🖼️ Gambar yang Diunggah", use_container_width=False)
+            img = Image.open(img_file).resize((300, 300))
+            st.image(img, caption="🖼️ Gambar yang Diunggah", use_container_width=True)
         
         # Center the predict button
         col1, col2, col3 = st.columns([1, 1, 1])
