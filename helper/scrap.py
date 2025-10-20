@@ -2,59 +2,79 @@ import requests
 from bs4 import BeautifulSoup
 import re
 
-from urllib.parse import urlparse
-
-# nutrisi
 def scrape_nutrition_data(food_name):
+    """
+    Scrape nutrition data from fatsecret.co.id
+    
+    Parameters:
+        - food_name (str): Name of the fruit to search for
+        
+    Returns:
+        - tuple: (nutrition_dict, default_volume)
+    """
+    # Normalize food name for URL
     food_name = food_name.replace(" ", "-").lower()
+    
+    # Handle special cases
     if food_name == 'ceri':
         food_name = 'ceri-manis'
-    
-    if food_name == 'kiwi':
+    elif food_name == 'kiwi':
         food_name = 'buah-kiwi'
     
-    url = "https://www.fatsecret.co.id/kalori-gizi/umum/" + food_name
-    response = requests.get(url)
-    soup = BeautifulSoup(response.content, "html.parser")
-
-    table = soup.find("table", class_="generic spaced")
-    tabe_volume = soup.find("table", class_='generic')
+    url = f"https://www.fatsecret.co.id/kalori-gizi/umum/{food_name}"
     
-    # Label mapping berdasarkan prefix
-    label_map = {
-        "Kal": "Kalori",
-        "Lemak": "Lemak",
-        "Karb": "Karbohidrat",
-        "Prot": "Protein"
-    }
-    
-    default_volume = 0
-    result = {}
+    try:
+        response = requests.get(url)
+        response.raise_for_status()  # Raise an exception for bad status codes
+        soup = BeautifulSoup(response.content, "html.parser")
 
-    if table:
-        rows = table.   find_all("tr")
-        for row in rows:
-            cols = row.find_all("td")
-            for col in cols:
-                text = col.get_text(strip=True)
-                for prefix, label in label_map.items():
-                    if text.startswith(prefix):
-                        match = re.search(r'\d+[.,]?\d*', text)
-                        if match:
-                            value = str(match.group().replace(",", "."))
-                            result[label] = value + " g" if label != "Kalori" else value + " kcal"
-                        break  
-
-    if tabe_volume:
-        rows = tabe_volume.find("tr", class_="selected")
+        # Find nutrition table
+        table = soup.find("table", class_="generic spaced")
+        volume_table = soup.find("table", class_='generic')
         
-        if rows:
-            cols = rows.find("td")
-            if cols:
-                text = cols.get_text(strip=True)
-                default_volume = text
-    
-    return result, default_volume
+        # Label mapping for nutrition data
+        label_map = {
+            "Kal": "Kalori",
+            "Lemak": "Lemak", 
+            "Karb": "Karbohidrat",
+            "Prot": "Protein"
+        }
+        
+        result = {}
+        default_volume = "100 gram"  # Default fallback
+
+        # Extract nutrition data
+        if table:
+            rows = table.find_all("tr")
+            for row in rows:
+                cols = row.find_all("td")
+                for col in cols:
+                    text = col.get_text(strip=True)
+                    for prefix, label in label_map.items():
+                        if text.startswith(prefix):
+                            match = re.search(r'\d+[.,]?\d*', text)
+                            if match:
+                                value = match.group().replace(",", ".")
+                                unit = " kcal" if label == "Kalori" else " g"
+                                result[label] = value + unit
+                            break
+
+        # Extract default volume/portion
+        if volume_table:
+            selected_row = volume_table.find("tr", class_="selected")
+            if selected_row:
+                first_col = selected_row.find("td")
+                if first_col:
+                    default_volume = first_col.get_text(strip=True)
+
+        return result, default_volume
+        
+    except requests.RequestException as e:
+        print(f"Error fetching data for {food_name}: {e}")
+        return {}, "100 gram"
+    except Exception as e:
+        print(f"Error parsing data for {food_name}: {e}")
+        return {}, "100 gram"
 
 # link porsi
 def scrape_portion_links(food_name):
@@ -131,4 +151,4 @@ def scrape_portion_nutrition(food_name):
         nutrition_data["volume"] = volume
         portion_nutrition.append(nutrition_data)
         
-    return portion_nutrition    
+    return portion_nutrition

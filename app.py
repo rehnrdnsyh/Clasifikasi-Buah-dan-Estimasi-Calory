@@ -143,9 +143,21 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# Load the model
-with open('model/model.pkl', 'rb') as f:
-    model = pickle.load(f)
+# Load the model with error handling
+@st.cache_resource
+def load_model():
+    try:
+        with open('model/model.pkl', 'rb') as f:
+            model = pickle.load(f)
+        return model
+    except FileNotFoundError:
+        st.error("❌ Model file tidak ditemukan. Pastikan file 'model/model.pkl' ada di direktori yang benar.")
+        return None
+    except Exception as e:
+        st.error(f"❌ Error loading model: {str(e)}")
+        return None
+
+model = load_model()
 
 fruits_list = ['Apel', 'Pisang', 'Alpukat', 'Ceri', 'Kiwi', 'Mangga', 'Jeruk', 'Nanas', 'Stroberi', 'Semangka']
 
@@ -168,6 +180,9 @@ def prepare_image_from_bytes(image_bytes):
     Process image directly from bytes and predict fruit/vegetable class
     """
     try:
+        if model is None:
+            return None, 0.0
+            
         # Preprocess the image for prediction
         image_array = preprocess_image(image_bytes)
         
@@ -325,6 +340,11 @@ def run():
     </div>
     """, unsafe_allow_html=True)
     
+    # Check if model is loaded
+    if model is None:
+        st.error("❌ Model tidak dapat dimuat. Silakan periksa file model dan coba lagi.")
+        return
+    
     # Create columns for better layout
     col1, col2 = st.columns([2, 1])
     
@@ -345,14 +365,15 @@ def run():
             <h4>🎯 Buah yang Didukung:</h4>
             <p>🍎 🍌 🥑 🍒 🥝</p>
             <p>🥭 🍊 🍍 🍓 🍉</p>
-        </div>        """, unsafe_allow_html=True)
+        </div>
+        """, unsafe_allow_html=True)
     
     if img_file is not None:
         # Display the uploaded image with better styling
         col1, col2, col3 = st.columns([1, 2, 1])
         with col2:
-            img = Image.open(img_file).resize((200, 200))
-            st.image(img, caption="🖼️ Gambar yang Diunggah", use_container_width=False)
+            img = Image.open(img_file).resize((300, 300))
+            st.image(img, caption="🖼️ Gambar yang Diunggah", use_column_width=False, width=300)
         
         # Center the predict button
         col1, col2, col3 = st.columns([1, 1, 1])
@@ -363,214 +384,218 @@ def run():
         if predict_button:
             # Show a spinner while processing
             with st.spinner("🔍 Menganalisis gambar buah Anda..."):
-                # Get image bytes directly from uploaded file
-                img_file.seek(0)  # Reset file pointer to beginning
-                image_bytes = img_file.read()
-                
-                # Process image directly from bytes
-                result, confidence = prepare_image_from_bytes(image_bytes)
-                
-                if result:
-                    # Get nutrition data and portion info
-                    nutrition_data, volume = scrape_nutrition_data(result)
-                    portion_text = volume if volume else "100 gram"
+                try:
+                    # Get image bytes directly from uploaded file
+                    img_file.seek(0)  # Reset file pointer to beginning
+                    image_bytes = img_file.read()
                     
-                    # Display prediction result with colorful card and portion info
-                    st.markdown(f"""
-                    <div class="success-card">
-                        <h2>🎉 Hasil Prediksi</h2>
-                        <h1 style="text-align: center; font-size: 3rem;">🍎 {result} ({portion_text}) 🍎</h1>
-                    </div>
-                    """, unsafe_allow_html=True)
+                    # Process image directly from bytes
+                    result, confidence = prepare_image_from_bytes(image_bytes)
                     
-                    # Display nutrition information if available
-                    if nutrition_data:
-                        st.markdown("### 🌈 Informasi Nutrisi")
+                    if result:
+                        # Get nutrition data and portion info
+                        nutrition_data, volume = scrape_nutrition_data(result)
+                        portion_text = volume if volume else "100 gram"
                         
-                        # Create colorful nutrition cards
-                        col1, col2, col3, col4 = st.columns(4)
+                        # Display prediction result with colorful card and portion info
+                        st.markdown(f"""
+                        <div class="success-card">
+                            <h2>🎉 Hasil Prediksi</h2>
+                            <h1 style="text-align: center; font-size: 3rem;">🍎 {result} ({portion_text}) 🍎</h1>
+                        </div>
+                        """, unsafe_allow_html=True)
                         
-                        # Display each nutrition category with colorful cards
-                        if "Kalori" in nutrition_data:
-                            with col1:
-                                st.markdown(f"""
-                                <div style="background: linear-gradient(135deg, #ff6b6b 0%, #ee5a24 100%); 
-                                           padding: 1.5rem; border-radius: 15px; text-align: center; color: white; margin: 0.5rem 0;">
-                                    <h3>🔥 Kalori</h3>
-                                    <h2>{nutrition_data["Kalori"]}</h2>
-                                </div>
-                                """, unsafe_allow_html=True)
+                        # Display nutrition information if available
+                        if nutrition_data:
+                            st.markdown("### 🌈 Informasi Nutrisi")
+                            
+                            # Create colorful nutrition cards
+                            col1, col2, col3, col4 = st.columns(4)
+                            
+                            # Display each nutrition category with colorful cards
+                            if "Kalori" in nutrition_data:
+                                with col1:
+                                    st.markdown(f"""
+                                    <div style="background: linear-gradient(135deg, #ff6b6b 0%, #ee5a24 100%); 
+                                               padding: 1.5rem; border-radius: 15px; text-align: center; color: white; margin: 0.5rem 0;">
+                                        <h3>🔥 Kalori</h3>
+                                        <h2>{nutrition_data["Kalori"]}</h2>
+                                    </div>
+                                    """, unsafe_allow_html=True)
+                            
+                            if "Lemak" in nutrition_data:
+                                with col2:
+                                    st.markdown(f"""
+                                    <div style="background: linear-gradient(135deg, #feca57 0%, #ff9ff3 100%); 
+                                               padding: 1.5rem; border-radius: 15px; text-align: center; color: white; margin: 0.5rem 0;">
+                                        <h3>🥑 Lemak</h3>
+                                        <h2>{nutrition_data["Lemak"]}</h2>
+                                    </div>
+                                    """, unsafe_allow_html=True)
+                            
+                            if "Karbohidrat" in nutrition_data:
+                                with col3:
+                                    st.markdown(f"""
+                                    <div style="background: linear-gradient(135deg, #48dbfb 0%, #0abde3 100%); 
+                                               padding: 1.5rem; border-radius: 15px; text-align: center; color: white; margin: 0.5rem 0;">
+                                        <h3>🌾 Karbohidrat</h3>
+                                        <h2>{nutrition_data["Karbohidrat"]}</h2>
+                                    </div>
+                                    """, unsafe_allow_html=True)
+                            
+                            if "Protein" in nutrition_data:
+                                with col4:
+                                    st.markdown(f"""
+                                    <div style="background: linear-gradient(135deg, #5f27cd 0%, #00d2d3 100%); 
+                                               padding: 1.5rem; border-radius: 15px; text-align: center; color: white; margin: 0.5rem 0;">
+                                        <h3>💪 Protein</h3>
+                                        <h2>{nutrition_data["Protein"]}</h2>
+                                    </div>
+                                    """, unsafe_allow_html=True)
+                            
+                        else:
+                            st.markdown("""
+                            <div class="error-card">
+                                <h3>⚠️ Informasi nutrisi tidak tersedia</h3>
+                                <p>Mohon maaf, data nutrisi untuk buah ini sedang tidak tersedia</p>
+                            </div>
+                            """, unsafe_allow_html=True)
                         
-                        if "Lemak" in nutrition_data:
-                            with col2:
-                                st.markdown(f"""
-                                <div style="background: linear-gradient(135deg, #feca57 0%, #ff9ff3 100%); 
-                                           padding: 1.5rem; border-radius: 15px; text-align: center; color: white; margin: 0.5rem 0;">
-                                    <h3>🥑 Lemak</h3>
-                                    <h2>{nutrition_data["Lemak"]}</h2>
-                                </div>
-                                """, unsafe_allow_html=True)
+                        # Add recommendation section with colorful header
+                        st.markdown("### 🍽️ Rekomendasi Diet")
                         
-                        if "Karbohidrat" in nutrition_data:
-                            with col3:
-                                st.markdown(f"""
-                                <div style="background: linear-gradient(135deg, #48dbfb 0%, #0abde3 100%); 
-                                           padding: 1.5rem; border-radius: 15px; text-align: center; color: white; margin: 0.5rem 0;">
-                                    <h3>🌾 Karbohidrat</h3>
-                                    <h2>{nutrition_data["Karbohidrat"]}</h2>
-                                </div>
-                                """, unsafe_allow_html=True)
+                        # Add reference sources
+                        st.markdown("""
+                        <div style="background: linear-gradient(135deg, #74b9ff 0%, #0984e3 100%); 
+                                   padding: 1rem; border-radius: 10px; color: white; margin: 1rem 0;">
+                            <h4>📚 Sumber Referensi Terpercaya:</h4>
+                            <ul>
+                                <li><a href="https://www.who.int/news-room/fact-sheets/detail/healthy-diet" target="_blank" style="color: #ddd;">WHO - Diet Sehat</a></li>
+                                <li><a href="https://www.p2ptm.kemkes.go.id/" target="_blank" style="color: #ddd;">Kementerian Kesehatan RI - P2PTM</a></li>
+                                <li><a href="https://www.nutrition.gov/" target="_blank" style="color: #ddd;">Nutrition.gov - Panduan Nutrisi</a></li>
+                                <li><a href="https://www.fatsecret.co.id/" target="_blank" style="color: #ddd;">FatSecret Indonesia - Data Nutrisi</a></li>
+                            </ul>
+                        </div>
+                        """, unsafe_allow_html=True)
                         
-                        if "Protein" in nutrition_data:
-                            with col4:
-                                st.markdown(f"""
-                                <div style="background: linear-gradient(135deg, #5f27cd 0%, #00d2d3 100%); 
-                                           padding: 1.5rem; border-radius: 15px; text-align: center; color: white; margin: 0.5rem 0;">
-                                    <h3>💪 Protein</h3>
-                                    <h2>{nutrition_data["Protein"]}</h2>
-                                </div>
-                                """, unsafe_allow_html=True)
+                        # Create colorful tabs for different goals
+                        tab1, tab2 = st.tabs(["🍃 Menurunkan Berat Badan", "💪 Menambah Berat Badan"])
                         
+                        with tab1:
+                            recommendations_lose = get_fruit_recommendations(result, 'lose_weight')
+                            
+                            st.markdown(f"### {recommendations_lose['title']}")
+                            st.write(recommendations_lose['description'])
+                            
+                            # Display note about detected fruit
+                            if 'detected_fruit_note' in recommendations_lose:
+                                st.info(recommendations_lose['detected_fruit_note'])
+                            
+                            # Display combinations
+                            for i, combo in enumerate(recommendations_lose['combinations']):
+                                with st.expander(f"{combo['name']} (Rata-rata: {combo['total_cal']} kal/100g)"):
+                                    st.write(f"**Buah yang disarankan:** {', '.join(combo['fruits'])}")
+                                    st.write(f"**Manfaat:** {combo['benefits']}")
+                                    
+                                    # Show individual nutrition for each fruit in combination
+                                    cols = st.columns(len(combo['fruits']))
+                                    for j, fruit in enumerate(combo['fruits']):
+                                        if fruit in fruits_nutrition_db:
+                                            with cols[j]:
+                                                nutrition = fruits_nutrition_db[fruit]
+                                                st.metric(
+                                                    label=fruit,
+                                                    value=f"{nutrition['kalori']} kal",
+                                                    delta=f"Serat: {nutrition['serat']}g"
+                                                )
+                        
+                        with tab2:
+                            recommendations_gain = get_fruit_recommendations(result, 'gain_weight')
+                            
+                            st.markdown(f"### {recommendations_gain['title']}")
+                            st.write(recommendations_gain['description'])
+                            
+                            # Display note about detected fruit
+                            if 'detected_fruit_note' in recommendations_gain:
+                                st.info(recommendations_gain['detected_fruit_note'])
+                            
+                            # Display combinations
+                            for i, combo in enumerate(recommendations_gain['combinations']):
+                                with st.expander(f"{combo['name']} (Rata-rata: {combo['total_cal']} kal/100g)"):
+                                    st.write(f"**Buah yang disarankan:** {', '.join(combo['fruits'])}")
+                                    st.write(f"**Manfaat:** {combo['benefits']}")
+                                    
+                                    # Show individual nutrition for each fruit in combination
+                                    cols = st.columns(len(combo['fruits']))
+                                    for j, fruit in enumerate(combo['fruits']):
+                                        if fruit in fruits_nutrition_db:
+                                            with cols[j]:
+                                                nutrition = fruits_nutrition_db[fruit]
+                                                st.metric(
+                                                    label=fruit,
+                                                    value=f"{nutrition['kalori']} kal",
+                                                    delta=f"Protein: {nutrition['protein']}g"
+                                                )
                     else:
+                        # Colorful error message
                         st.markdown("""
                         <div class="error-card">
-                            <h3>⚠️ Informasi nutrisi tidak tersedia</h3>
-                            <p>Mohon maaf, data nutrisi untuk buah ini sedang tidak tersedia</p>
+                            <h2>❌ Tidak Dapat Mengidentifikasi Buah</h2>
+                            <h3>🔄 Gunakan foto buah yang sesuai dengan sistem</h3>
                         </div>
                         """, unsafe_allow_html=True)
-                    
-                    # Add recommendation section with colorful header
-                    st.markdown("### 🍽️ Rekomendasi Diet")
-                    
-                    # Add reference sources
-                    st.markdown("""
-                    <div style="background: linear-gradient(135deg, #74b9ff 0%, #0984e3 100%); 
-                               padding: 1rem; border-radius: 10px; color: white; margin: 1rem 0;">
-                        <h4>📚 Sumber Referensi Terpercaya:</h4>
-                        <ul>
-                            <li><a href="https://www.who.int/news-room/fact-sheets/detail/healthy-diet" target="_blank" style="color: #ddd;">WHO - Diet Sehat</a></li>
-                            <li><a href="https://www.p2ptm.kemkes.go.id/" target="_blank" style="color: #ddd;">Kementerian Kesehatan RI - P2PTM</a></li>
-                            <li><a href="https://www.nutrition.gov/" target="_blank" style="color: #ddd;">Nutrition.gov - Panduan Nutrisi</a></li>
-                            <li><a href="https://www.fatsecret.co.id/" target="_blank" style="color: #ddd;">FatSecret Indonesia - Data Nutrisi</a></li>
-                        </ul>
-                    </div>
-                    """, unsafe_allow_html=True)
-                    
-                    # Create colorful tabs for different goals
-                    tab1, tab2 = st.tabs(["🍃 Menurunkan Berat Badan", "💪 Menambah Berat Badan"])
-                    
-                    with tab1:
-                        recommendations_lose = get_fruit_recommendations(result, 'lose_weight')
                         
-                        st.markdown(f"### {recommendations_lose['title']}")
-                        st.write(recommendations_lose['description'])
-                        
-                        # Display note about detected fruit
-                        if 'detected_fruit_note' in recommendations_lose:
-                            st.info(recommendations_lose['detected_fruit_note'])
-                        
-                        # Display combinations
-                        for i, combo in enumerate(recommendations_lose['combinations']):
-                            with st.expander(f"{combo['name']} (Rata-rata: {combo['total_cal']} kal/100g)"):
-                                st.write(f"**Buah yang disarankan:** {', '.join(combo['fruits'])}")
-                                st.write(f"**Manfaat:** {combo['benefits']}")
-                                
-                                # Show individual nutrition for each fruit in combination
-                                cols = st.columns(len(combo['fruits']))
-                                for j, fruit in enumerate(combo['fruits']):
-                                    if fruit in fruits_nutrition_db:
-                                        with cols[j]:
-                                            nutrition = fruits_nutrition_db[fruit]
-                                            st.metric(
-                                                label=fruit,
-                                                value=f"{nutrition['kalori']} kal",
-                                                delta=f"Serat: {nutrition['serat']}g"
-                                            )
-                    
-                    with tab2:
-                        recommendations_gain = get_fruit_recommendations(result, 'gain_weight')
-                        
-                        st.markdown(f"### {recommendations_gain['title']}")
-                        st.write(recommendations_gain['description'])
-                        
-                        # Display note about detected fruit
-                        if 'detected_fruit_note' in recommendations_gain:
-                            st.info(recommendations_gain['detected_fruit_note'])
-                        
-                        # Display combinations
-                        for i, combo in enumerate(recommendations_gain['combinations']):
-                            with st.expander(f"{combo['name']} (Rata-rata: {combo['total_cal']} kal/100g)"):
-                                st.write(f"**Buah yang disarankan:** {', '.join(combo['fruits'])}")
-                                st.write(f"**Manfaat:** {combo['benefits']}")
-                                
-                                # Show individual nutrition for each fruit in combination
-                                cols = st.columns(len(combo['fruits']))
-                                for j, fruit in enumerate(combo['fruits']):
-                                    if fruit in fruits_nutrition_db:
-                                        with cols[j]:
-                                            nutrition = fruits_nutrition_db[fruit]
-                                            st.metric(
-                                                label=fruit,
-                                                value=f"{nutrition['kalori']} kal",
-                                                delta=f"Protein: {nutrition['protein']}g"
-                                            )
-                else:
-                    # Colorful error message
-                    st.markdown("""
-                    <div class="error-card">
-                        <h2>❌ Tidak Dapat Mengidentifikasi Buah</h2>
-                        <h3>🔄 Gunakan foto buah yang sesuai dengan sistem</h3>
-                    </div>
-                    """, unsafe_allow_html=True)
-                    
-                    # Tampilkan daftar buah yang dapat diprediksi dengan styling colorful
-                    st.markdown("""
-                    <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); 
-                               padding: 2rem; border-radius: 15px; color: white; margin: 1rem 0;">
-                        <h3>📝 Buah yang Didukung oleh Sistem Kami:</h3>
-                    </div>
-                    """, unsafe_allow_html=True)
-                    
-                    col1, col2 = st.columns(2)
-                    
-                    with col1:
-                        st.markdown("""
-                        <div style="background: linear-gradient(135deg, #ff9a56 0%, #ffad56 100%); 
-                                   padding: 1.5rem; border-radius: 15px; color: white; margin: 0.5rem;">
-                            <h4>🍎 Apel</h4>
-                            <h4>🍌 Pisang</h4>
-                            <h4>🥑 Alpukat</h4>
-                            <h4>🍒 Ceri</h4>
-                            <h4>🥝 Kiwi</h4>
-                        </div>
-                        """, unsafe_allow_html=True)
-                    
-                    with col2:
+                        # Tampilkan daftar buah yang dapat diprediksi dengan styling colorful
                         st.markdown("""
                         <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); 
-                                   padding: 1.5rem; border-radius: 15px; color: white; margin: 0.5rem;">
-                            <h4>🥭 Mangga</h4>
-                            <h4>🍊 Jeruk</h4>
-                            <h4>🍍 Nanas</h4>
-                            <h4>🍓 Stroberi</h4>
-                            <h4>🍉 Semangka</h4>
+                                   padding: 2rem; border-radius: 15px; color: white; margin: 1rem 0;">
+                            <h3>📝 Buah yang Didukung oleh Sistem Kami:</h3>
                         </div>
                         """, unsafe_allow_html=True)
-                    
-                    # Tips dengan styling colorful
-                    st.markdown("""
-                    <div style="background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%); 
-                               padding: 2rem; border-radius: 15px; color: white; margin: 1rem 0;">
-                        <h3>💡 Tips untuk Hasil Terbaik:</h3>
-                        <ul style="font-size: 1.1rem; line-height: 1.8;">
-                            <li>📸 Gunakan foto buah dari daftar di atas</li>
-                            <li>🔍 Pastikan gambar fokus dan jelas</li>
-                            <li>✨ Gunakan foto buah segar yang utuh</li>
-                            <li>🎯 Hindari gambar dengan background yang ramai</li>
-                            <li>💡 Pastikan pencahayaan cukup baik</li>
-                        </ul>
-                    </div>
-                    """, unsafe_allow_html=True)
+                        
+                        col1, col2 = st.columns(2)
+                        
+                        with col1:
+                            st.markdown("""
+                            <div style="background: linear-gradient(135deg, #ff9a56 0%, #ffad56 100%); 
+                                       padding: 1.5rem; border-radius: 15px; color: white; margin: 0.5rem;">
+                                <h4>🍎 Apel</h4>
+                                <h4>🍌 Pisang</h4>
+                                <h4>🥑 Alpukat</h4>
+                                <h4>🍒 Ceri</h4>
+                                <h4>🥝 Kiwi</h4>
+                            </div>
+                            """, unsafe_allow_html=True)
+                        
+                        with col2:
+                            st.markdown("""
+                            <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); 
+                                       padding: 1.5rem; border-radius: 15px; color: white; margin: 0.5rem;">
+                                <h4>🥭 Mangga</h4>
+                                <h4>🍊 Jeruk</h4>
+                                <h4>🍍 Nanas</h4>
+                                <h4>🍓 Stroberi</h4>
+                                <h4>🍉 Semangka</h4>
+                            </div>
+                            """, unsafe_allow_html=True)
+                        
+                        # Tips dengan styling colorful
+                        st.markdown("""
+                        <div style="background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%); 
+                                   padding: 2rem; border-radius: 15px; color: white; margin: 1rem 0;">
+                            <h3>💡 Tips untuk Hasil Terbaik:</h3>
+                            <ul style="font-size: 1.1rem; line-height: 1.8;">
+                                <li>📸 Gunakan foto buah dari daftar di atas</li>
+                                <li>🔍 Pastikan gambar fokus dan jelas</li>
+                                <li>✨ Gunakan foto buah segar yang utuh</li>
+                                <li>🎯 Hindari gambar dengan background yang ramai</li>
+                                <li>💡 Pastikan pencahayaan cukup baik</li>
+                            </ul>
+                        </div>
+                        """, unsafe_allow_html=True)
+                        
+                except Exception as e:
+                    st.error(f"❌ Terjadi kesalahan saat memproses gambar: {str(e)}")
 
 
 # Run the application
